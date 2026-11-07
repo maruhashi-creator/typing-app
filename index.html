@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <!-- 文字化けを防ぐ設定 -->
+  <meta charset="UTF-8">
+  <!-- スマホの画面幅に合わせて表示する設定（これが無いとスマホで文字が極小になる） -->
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>タイピング記録</title>
+
+  <!-- ===== 見た目（CSS） ===== -->
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      margin: 0;
+      padding: 16px;
+      background: #f4f6f8;
+      color: #222;
+    }
+    .wrap { max-width: 480px; margin: 0 auto; }
+    h1 { font-size: 1.4rem; margin: 0 0 12px; }
+    h2 { font-size: 1.1rem; margin: 24px 0 8px; }
+
+    /* 入力フォームのカード */
+    form {
+      background: #fff;
+      padding: 16px;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.1);
+    }
+    label { display: block; font-size: .9rem; margin-top: 12px; }
+    input {
+      width: 100%;
+      box-sizing: border-box;
+      font-size: 16px; /* 16px未満だとiPhoneで入力時に勝手にズームされる */
+      padding: 10px;
+      margin-top: 4px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+    }
+    button {
+      width: 100%;
+      margin-top: 16px;
+      padding: 12px;
+      font-size: 1rem;
+      border: none;
+      border-radius: 8px;
+      background: #2f6fed;
+      color: #fff;
+    }
+    .msg { color: #c00; font-size: .9rem; margin: 8px 0 0; min-height: 1em; }
+
+    /* 履歴一覧 */
+    #list { list-style: none; padding: 0; margin: 0; }
+    #list li {
+      background: #fff;
+      padding: 12px;
+      margin-bottom: 8px;
+      border-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .date { font-size: .8rem; color: #666; }
+    .site { font-weight: bold; }
+    .del {
+      width: auto;
+      flex-shrink: 0;      /* 横幅が狭くてもボタンを縮めない */
+      white-space: nowrap; /* 「削除」を縦に折り返さない */
+      margin: 0;
+      padding: 6px 10px;
+      font-size: .8rem;
+      background: #eee;
+      color: #333;
+    }
+    .empty { color: #888; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>⌨️ タイピング記録</h1>
+
+    <!-- ===== 入力フォーム（HTML） ===== -->
+    <form id="form">
+      <label>日付
+        <input id="date" type="date" required>
+      </label>
+
+      <label>サイト名
+        <!-- list="sites" で入力候補を出す（自由入力もOK） -->
+        <input id="site" list="sites" placeholder="例：寿司打" required>
+        <datalist id="sites">
+          <option value="寿司打">
+          <option value="e-typing">
+          <option value="タイピングオブジョイトイ">
+        </datalist>
+      </label>
+
+      <label>スコア
+        <input id="score" type="number" inputmode="numeric" min="0" required>
+      </label>
+
+      <label>ミス数
+        <input id="miss" type="number" inputmode="numeric" min="0" required>
+      </label>
+
+      <button type="submit">記録する</button>
+      <p class="msg" id="msg"></p>
+    </form>
+
+    <h2>履歴</h2>
+    <ul id="list"></ul>
+  </div>
+
+  <!-- ===== 動き（JavaScript） ===== -->
+  <script>
+    // localStorage に保存するときの名前（キー）
+    const STORAGE_KEY = "typingRecords";
+
+    // --- 保存されている記録を読み込む ---
+    function loadRecords() {
+      try {
+        const text = localStorage.getItem(STORAGE_KEY);
+        return text ? JSON.parse(text) : [];
+      } catch (e) {
+        return []; // 読めなかったら空っぽ扱い
+      }
+    }
+
+    // --- 記録を保存する（配列を文字列にして保存） ---
+    function saveRecords(records) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+    }
+
+    // --- 履歴一覧を画面に描く ---
+    function render() {
+      const list = document.getElementById("list");
+      list.innerHTML = ""; // いったん空にしてから描き直す
+
+      // 日付の新しい順に並べ替え
+      const records = loadRecords().sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
+
+      if (records.length === 0) {
+        list.innerHTML = '<li class="empty">まだ記録がありません</li>';
+        return;
+      }
+
+      for (const r of records) {
+        const li = document.createElement("li");
+
+        const info = document.createElement("div");
+        // textContent を使うと、入力された文字がそのまま文字として表示される（安全）
+        const date = document.createElement("div");
+        date.className = "date";
+        date.textContent = r.date;
+        const main = document.createElement("div");
+        const site = document.createElement("span");
+        site.className = "site";
+        site.textContent = r.site;
+        main.append(site, `　スコア ${r.score} / ミス ${r.miss}`);
+        info.append(date, main);
+
+        const del = document.createElement("button");
+        del.className = "del";
+        del.textContent = "削除";
+        del.addEventListener("click", () => deleteRecord(r.id));
+
+        li.append(info, del);
+        list.appendChild(li);
+      }
+    }
+
+    // --- 記録を1件削除する ---
+    function deleteRecord(id) {
+      if (!confirm("この記録を削除しますか？")) return;
+      saveRecords(loadRecords().filter((r) => r.id !== id));
+      render();
+    }
+
+    // --- 「記録する」ボタンが押されたとき ---
+    document.getElementById("form").addEventListener("submit", (event) => {
+      event.preventDefault(); // ページの再読み込みを止める
+
+      const record = {
+        id: Date.now(), // 削除するときの目印（作った時刻の数字）
+        date: document.getElementById("date").value,
+        site: document.getElementById("site").value.trim(),
+        score: Number(document.getElementById("score").value),
+        miss: Number(document.getElementById("miss").value),
+      };
+
+      const msg = document.getElementById("msg");
+      if (!record.site) {
+        msg.textContent = "サイト名を入力してください";
+        return;
+      }
+      msg.textContent = "";
+
+      const records = loadRecords();
+      records.push(record);
+      saveRecords(records);
+
+      // 次の入力のためにスコアとミス数だけ空にする（日付とサイト名は残す）
+      document.getElementById("score").value = "";
+      document.getElementById("miss").value = "";
+      render();
+    });
+
+    // --- ページを開いたときの初期処理 ---
+    // 日付欄に今日の日付を入れておく（YYYY-MM-DD 形式）
+    const today = new Date();
+    today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
+    document.getElementById("date").value = today.toISOString().slice(0, 10);
+    render();
+  </script>
+</body>
+</html>
