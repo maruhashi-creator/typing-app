@@ -10,7 +10,9 @@
   <!-- ===== 見た目（CSS） ===== -->
   <style>
     body {
-      font-family: system-ui, -apple-system, sans-serif;
+      /* 左から順に、その端末にあるフォントが使われる
+         iPhone・Mac → ヒラギノ角ゴ / Windows → 游ゴシック・メイリオ */
+      font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo", sans-serif;
       margin: 0;
       padding: 16px;
       background: #f4f6f8;
@@ -28,6 +30,8 @@
       box-shadow: 0 1px 3px rgba(0,0,0,.1);
     }
     label { display: block; font-size: .9rem; margin-top: 12px; }
+    /* ボタンと入力欄は、指定しないとページのフォントを引き継がないので明示する */
+    button, input { font-family: inherit; }
     input {
       width: 100%;
       box-sizing: border-box;
