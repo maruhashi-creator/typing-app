@@ -3,25 +3,25 @@
 <head>
   <!-- 文字化けを防ぐ設定 -->
   <meta charset="UTF-8">
-  <!-- スマホの画面幅に合わせて表示する設定（これが無いとスマホで文字が極小になる） -->
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>タイピング記録</title>
+  <!-- スマホの画面幅に合わせ、拡大縮小を止める（フリック中に画面がズームしないように） -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>フリック練習</title>
 
   <!-- ===== 見た目（CSS） ===== -->
   <style>
     body {
-      font-family: system-ui, sans-serif;
+      font-family: system-ui, -apple-system, sans-serif;
       margin: 0;
       padding: 16px;
       background: #f4f6f8;
       color: #222;
     }
     .wrap { max-width: 480px; margin: 0 auto; }
-    h1 { font-size: 1.4rem; margin: 0 0 12px; }
+    h1 { font-size: 1.3rem; margin: 0 0 12px; }
     h2 { font-size: 1.1rem; margin: 24px 0 8px; }
 
-    /* 入力フォームのカード */
-    form {
+    /* 白いカード */
+    .card {
       background: #fff;
       padding: 16px;
       border-radius: 12px;
@@ -47,9 +47,96 @@
       background: #2f6fed;
       color: #fff;
     }
+    button.sub { background: #eee; color: #333; }
     .msg { color: #c00; font-size: .9rem; margin: 8px 0 0; min-height: 1em; }
+    .hidden { display: none !important; }
 
-    /* 履歴一覧 */
+    /* ----- 練習画面 ----- */
+    .progress { font-size: .85rem; color: #666; display: flex; justify-content: space-between; }
+    .show { font-size: 1.5rem; font-weight: bold; margin: 12px 0 4px; text-align: center; }
+    .kana { font-size: 1.1rem; color: #2f6fed; text-align: center; letter-spacing: .05em; }
+    /* 入力した文字を表示する欄（本物の入力欄ではないので、iPhone標準キーボードは出ない） */
+    #typed {
+      font-size: 20px;
+      text-align: center;
+      min-height: 1.5em;
+      margin-top: 12px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+    }
+    #typed::after { content: "|"; color: #2f6fed; animation: blink 1s steps(1) infinite; }
+    @keyframes blink { 50% { opacity: 0; } }
+    #typed.ng { background: #ffe5e5; border-color: #e33; } /* 間違えている間は赤くなる */
+    .hint { text-align: center; font-size: .8rem; color: #888; margin: 8px 0 0; }
+    #quitBtn { margin-top: 8px; padding: 8px; font-size: .9rem; }
+
+    /* 練習中は、キーボードの後ろに隠れないよう下に余白を空け、他の部分を隠す */
+    body.playing { padding-bottom: 300px; }
+    body.playing .notPlaying { display: none; }
+
+    /* ----- 結果表示 ----- */
+    .result { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+    .result div { background: #f4f6f8; border-radius: 8px; padding: 10px; text-align: center; }
+    .result b { display: block; font-size: 1.4rem; }
+
+    /* ----- iPhone風フリックキーボード ----- */
+    #keyboard {
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      background: #d1d4da;
+      padding: 8px 4px calc(8px + env(safe-area-inset-bottom)); /* iPhone下部のバーを避ける */
+      display: grid;
+      grid-template-columns: 1fr 1.3fr 1.3fr 1.3fr 1fr; /* 左右の列は少し細い */
+      grid-auto-rows: 50px;
+      gap: 6px;
+      /* 長押しで文字選択やメニューが出たり、画面がスクロールしたりするのを止める */
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      touch-action: none;
+    }
+    .key {
+      background: #fff;
+      border-radius: 6px;
+      box-shadow: 0 1px 0 #8a8d93;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      color: #000;
+    }
+    .key.fn { background: #acb1ba; font-size: 15px; }  /* 機能キー（濃いグレー） */
+    .key.dim { color: #6b6f76; }                        /* 今回は使わない飾りのキー */
+    .key.small { font-size: 15px; }
+    .key.pressed { background: #acb1ba; }
+    .key.fn.pressed { background: #fff; }
+    .key.enter { grid-row: span 2; }                    /* 改行キーは縦2段ぶん */
+
+    /* 押している間に出る「十字のガイド」 */
+    #guide {
+      position: fixed;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      pointer-events: none;
+      z-index: 10;
+    }
+    #guide div {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      border-radius: 6px;
+    }
+    #guide div.cand { background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+    #guide div.on { background: #2f6fed; color: #fff; }
+
+    /* ----- 手動記録（折りたたみ） ----- */
+    details { margin-top: 24px; }
+    summary { font-weight: bold; cursor: pointer; padding: 8px 0; }
+
+    /* ----- 履歴一覧 ----- */
     #list { list-style: none; padding: 0; margin: 0; }
     #list li {
       background: #fff;
@@ -78,46 +165,264 @@
 </head>
 <body>
   <div class="wrap">
-    <h1>⌨️ タイピング記録</h1>
+    <h1 class="notPlaying">⌨️ フリック練習＆記録</h1>
 
-    <!-- ===== 入力フォーム（HTML） ===== -->
-    <form id="form">
-      <label>日付
-        <input id="date" type="date" required>
-      </label>
+    <!-- ===== 練習エリア（HTML） ===== -->
+    <div class="card">
+      <!-- (1) スタート前 -->
+      <div id="startView">
+        <p>画面下のフリックキーボードで、表示された文を入力します。全10問で、終わると結果が自動で記録されます。</p>
+        <button id="startBtn">練習をはじめる</button>
+      </div>
 
-      <label>サイト名
-        <!-- list="sites" で入力候補を出す（自由入力もOK） -->
-        <input id="site" list="sites" placeholder="例：寿司打" required>
-        <datalist id="sites">
-          <option value="寿司打">
-          <option value="e-typing">
-          <option value="タイピングオブジョイトイ">
-        </datalist>
-      </label>
+      <!-- (2) 練習中 -->
+      <div id="playView" class="hidden">
+        <div class="progress"><span id="count">1 / 10</span><span id="missView">ミス 0</span></div>
+        <div class="show" id="show"></div>
+        <div class="kana" id="kana"></div>
+        <div id="typed"></div>
+        <p class="hint">押したまま 上下左右にスライド（タップ＝あ段）</p>
+        <button class="sub" id="quitBtn">やめる</button>
+      </div>
 
-      <label>スコア
-        <input id="score" type="number" inputmode="numeric" min="0" required>
-      </label>
+      <!-- (3) 結果 -->
+      <div id="resultView" class="hidden">
+        <h2 style="margin-top:0">結果（記録しました）</h2>
+        <div class="result">
+          <div>速さ<b id="rSpeed"></b>文字/分</div>
+          <div>ミス<b id="rMiss"></b>回</div>
+          <div>正確さ<b id="rAcc"></b>%</div>
+          <div>時間<b id="rTime"></b>秒</div>
+        </div>
+        <button id="againBtn">もう一度</button>
+      </div>
+    </div>
 
-      <label>ミス数
-        <input id="miss" type="number" inputmode="numeric" min="0" required>
-      </label>
+    <!-- ===== 手動記録（他サイトの結果用） ===== -->
+    <details class="notPlaying">
+      <summary>他サイトの結果を手で記録する</summary>
+      <form id="form" class="card">
+        <label>日付
+          <input id="date" type="date" required>
+        </label>
+        <label>サイト名
+          <input id="site" list="sites" placeholder="例：寿司打" required>
+          <datalist id="sites">
+            <option value="寿司打">
+            <option value="e-typing">
+            <option value="タイピングオブジョイトイ">
+          </datalist>
+        </label>
+        <label>スコア
+          <input id="score" type="number" inputmode="numeric" min="0" required>
+        </label>
+        <label>ミス数
+          <input id="miss" type="number" inputmode="numeric" min="0" required>
+        </label>
+        <button type="submit">記録する</button>
+        <p class="msg" id="msg"></p>
+      </form>
+    </details>
 
-      <button type="submit">記録する</button>
-      <p class="msg" id="msg"></p>
-    </form>
-
-    <h2>履歴</h2>
-    <ul id="list"></ul>
+    <h2 class="notPlaying">履歴</h2>
+    <ul id="list" class="notPlaying"></ul>
   </div>
+
+  <!-- ===== フリックキーボード（中身はJavaScriptで作る） ===== -->
+  <div id="keyboard" class="hidden"></div>
+  <div id="guide" class="hidden"></div>
 
   <!-- ===== 動き（JavaScript） ===== -->
   <script>
-    // localStorage に保存するときの名前（キー）
+    // =========================================================
+    // お題の一覧（show = 表示する文、kana = 入力する読み）
+    // 好きな文を自由に足したり消したりしてOKです
+    // =========================================================
+    const PHRASES = [
+      { show: "おはようございます", kana: "おはようございます" },
+      { show: "ありがとう", kana: "ありがとう" },
+      { show: "今日はいい天気", kana: "きょうはいいてんき" },
+      { show: "明日の予定", kana: "あしたのよてい" },
+      { show: "駅で待ち合わせ", kana: "えきでまちあわせ" },
+      { show: "少し遅れます", kana: "すこしおくれます" },
+      { show: "了解しました", kana: "りょうかいしました" },
+      { show: "お疲れさまです", kana: "おつかれさまです" },
+      { show: "ちょっと待って", kana: "ちょっとまって" },
+      { show: "コーヒーを飲む", kana: "こーひーをのむ" },
+      { show: "晩ごはん何にする", kana: "ばんごはんなににする" },
+      { show: "写真を送ります", kana: "しゃしんをおくります" },
+      { show: "電車が混んでいる", kana: "でんしゃがこんでいる" },
+      { show: "週末は買い物", kana: "しゅうまつはかいもの" },
+      { show: "楽しかったね", kana: "たのしかったね" },
+      { show: "また今度", kana: "またこんど" },
+      { show: "よろしくお願いします", kana: "よろしくおねがいします" },
+      { show: "パンを買って帰る", kana: "ぱんをかってかえる" },
+      { show: "雨が降ってきた", kana: "あめがふってきた" },
+      { show: "お先に失礼します", kana: "おさきにしつれいします" },
+      { show: "旅行に行きたい", kana: "りょこうにいきたい" },
+      { show: "ゆっくり休んでね", kana: "ゆっくりやすんでね" },
+      { show: "誕生日おめでとう", kana: "たんじょうびおめでとう" },
+      { show: "ぴったりの大きさ", kana: "ぴったりのおおきさ" },
+    ];
+    const QUESTIONS_PER_ROUND = 10; // 1回の練習の問題数
+    const PRACTICE_SITE_NAME = "フリック練習（このアプリ）";
+
+    // =========================================================
+    // キーボードの配置（iPhoneの日本語かな配列と同じ並び）
+    // flick: [タップ, 左, 上, 右, 下] の順に入る文字（"" は何も入らない）
+    // action: 文字以外の働きをするキー
+    // =========================================================
+    const KEY_LAYOUT = [
+      { label: "→", dim: true },
+      { flick: ["あ", "い", "う", "え", "お"] },
+      { flick: ["か", "き", "く", "け", "こ"] },
+      { flick: ["さ", "し", "す", "せ", "そ"] },
+      { label: "⌫", action: "backspace" },
+
+      { label: "↺", dim: true },
+      { flick: ["た", "ち", "つ", "て", "と"] },
+      { flick: ["な", "に", "ぬ", "ね", "の"] },
+      { flick: ["は", "ひ", "ふ", "へ", "ほ"] },
+      { label: "空白", dim: true },
+
+      { label: "ABC", dim: true },
+      { flick: ["ま", "み", "む", "め", "も"] },
+      { flick: ["や", "「", "ゆ", "」", "よ"] },
+      { flick: ["ら", "り", "る", "れ", "ろ"] },
+      { label: "改行", dim: true, enter: true },
+
+      { label: "☺", dim: true },
+      { label: "小゛゜", action: "modify", small: true },
+      { flick: ["わ", "を", "ん", "ー", ""] },
+      { flick: ["、", "。", "？", "！", ""], label: "、。?!", small: true },
+    ];
+
+    // 「小゛゜」キーを押すたびに、直前の文字がこの順番で切り替わる
+    const VARIANT_GROUPS = [
+      "かが", "きぎ", "くぐ", "けげ", "こご",
+      "さざ", "しじ", "すず", "せぜ", "そぞ",
+      "ただ", "ちぢ", "つっづ", "てで", "とど",
+      "はばぱ", "ひびぴ", "ふぶぷ", "へべぺ", "ほぼぽ",
+      "あぁ", "いぃ", "うぅゔ", "えぇ", "おぉ",
+      "やゃ", "ゆゅ", "よょ", "わゎ",
+    ];
+
+    // 文字を「小゛゜」で次の形に切り替える（例：「は」→「ば」→「ぱ」→「は」）
+    function nextVariant(ch) {
+      for (const group of VARIANT_GROUPS) {
+        const chars = [...group];
+        const i = chars.indexOf(ch);
+        if (i >= 0) return chars[(i + 1) % chars.length];
+      }
+      return ch; // 切り替えられない文字はそのまま
+    }
+
+    // =========================================================
+    // キーボードを画面に作る
+    // =========================================================
+    const keyboard = document.getElementById("keyboard");
+    const guide = document.getElementById("guide");
+    const FLICK_DISTANCE = 18; // この距離（px）以上スライドしたらフリックとみなす
+
+    for (const def of KEY_LAYOUT) {
+      const key = document.createElement("div");
+      key.className = "key";
+      key.textContent = def.label || def.flick[0];
+      if (!def.flick) key.classList.add("fn");
+      if (def.dim) key.classList.add("dim");
+      if (def.small) key.classList.add("small");
+      if (def.enter) key.classList.add("enter");
+      if (def.flick) key.dataset.char = def.flick[0]; // テスト用の目印
+      if (def.action) key.dataset.action = def.action;
+      keyboard.appendChild(key);
+      if (!def.dim) setupKey(key, def);
+    }
+
+    // スライドした方向を 0=タップ, 1=左, 2=上, 3=右, 4=下 で返す
+    function directionOf(dx, dy) {
+      if (Math.hypot(dx, dy) < FLICK_DISTANCE) return 0;
+      if (Math.abs(dx) > Math.abs(dy)) return dx < 0 ? 1 : 3;
+      return dy < 0 ? 2 : 4;
+    }
+
+    // 1つのキーに「押した・動かした・離した」ときの動きを登録する
+    function setupKey(key, def) {
+      let startX = 0, startY = 0, dir = 0;
+
+      key.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        key.setPointerCapture(e.pointerId); // 指がキーの外に出ても追いかける
+        startX = e.clientX;
+        startY = e.clientY;
+        dir = 0;
+        key.classList.add("pressed");
+        if (def.flick) showGuide(key, def.flick, 0);
+      });
+
+      key.addEventListener("pointermove", (e) => {
+        if (!key.classList.contains("pressed") || !def.flick) return;
+        dir = directionOf(e.clientX - startX, e.clientY - startY);
+        showGuide(key, def.flick, dir);
+      });
+
+      key.addEventListener("pointerup", (e) => {
+        if (!key.classList.contains("pressed")) return;
+        key.classList.remove("pressed");
+        hideGuide();
+        if (def.flick) {
+          dir = directionOf(e.clientX - startX, e.clientY - startY);
+          const ch = def.flick[dir];
+          if (ch) typeText(currentText + ch);
+        } else if (def.action === "backspace") {
+          typeText([...currentText].slice(0, -1).join(""));
+        } else if (def.action === "modify") {
+          const chars = [...currentText];
+          if (chars.length) {
+            chars.push(nextVariant(chars.pop()));
+            typeText(chars.join(""));
+          }
+        }
+      });
+
+      key.addEventListener("pointercancel", () => {
+        key.classList.remove("pressed");
+        hideGuide();
+      });
+    }
+
+    // キーの上に十字のガイドを出す（選ばれている方向を青くする）
+    function showGuide(key, flick, dir) {
+      const r = key.getBoundingClientRect();
+      const size = Math.min(r.width, r.height);
+      guide.style.width = size * 3 + "px";
+      guide.style.height = size * 3 + "px";
+      guide.style.left = r.left + r.width / 2 - size * 1.5 + "px";
+      guide.style.top = r.top + r.height / 2 - size * 1.5 + "px";
+      // 3×3のマスのうち、どこに何を置くか（4=中央, 3=左, 1=上, 5=右, 7=下）
+      const cellOf = [4, 3, 1, 5, 7];
+      const cells = Array(9).fill(null);
+      flick.forEach((ch, i) => { if (ch) cells[cellOf[i]] = { ch, on: i === dir }; });
+      guide.innerHTML = "";
+      for (const c of cells) {
+        const div = document.createElement("div");
+        if (c) {
+          div.textContent = c.ch;
+          div.className = c.on ? "cand on" : "cand";
+        }
+        guide.appendChild(div);
+      }
+      guide.classList.remove("hidden");
+    }
+
+    function hideGuide() {
+      guide.classList.add("hidden");
+    }
+
+    // =========================================================
+    // 記録の保存・読み込み（localStorage = ブラウザ内の保存領域）
+    // =========================================================
     const STORAGE_KEY = "typingRecords";
 
-    // --- 保存されている記録を読み込む ---
     function loadRecords() {
       try {
         const text = localStorage.getItem(STORAGE_KEY);
@@ -127,17 +432,163 @@
       }
     }
 
-    // --- 記録を保存する（配列を文字列にして保存） ---
     function saveRecords(records) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
     }
 
-    // --- 履歴一覧を画面に描く ---
+    function addRecord(record) {
+      const records = loadRecords();
+      records.push(record);
+      saveRecords(records);
+      render();
+    }
+
+    // 今日の日付を「2026-11-07」の形で返す
+    function todayString() {
+      const d = new Date();
+      d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+      return d.toISOString().slice(0, 10);
+    }
+
+    // =========================================================
+    // 入力チェック
+    // 「か」→小゛゜→「が」、「つ」→小゛゜→「っ」のように、
+    // 途中で一瞬ちがう文字になるので、最後の1文字だけは「途中」として大目に見る
+    // =========================================================
+    const SMALL_TO_LARGE = { "ぁ":"あ","ぃ":"い","ぅ":"う","ぇ":"え","ぉ":"お","っ":"つ","ゃ":"や","ゅ":"ゆ","ょ":"よ","ゎ":"わ" };
+
+    // 濁点・半濁点・小さい文字を取りのぞいた「元の文字」を返す（例：「ぱ」→「は」、「っ」→「つ」）
+    function baseOf(ch) {
+      const b = ch.normalize("NFD")[0];
+      return SMALL_TO_LARGE[b] || b;
+    }
+
+    // 入力中の文字が、正解に向かって正しく進んでいるか？
+    function isOnTrack(typed, target) {
+      const t = [...typed], g = [...target];
+      if (t.length > g.length) return false;
+      for (let i = 0; i < t.length; i++) {
+        if (t[i] === g[i]) continue;
+        const isLast = i === t.length - 1;
+        if (isLast && baseOf(t[i]) === baseOf(g[i])) continue;
+        return false;
+      }
+      return true;
+    }
+
+    // =========================================================
+    // 練習の進行
+    // =========================================================
+    const typedView = document.getElementById("typed");
+    let questions = [];    // 今回のお題10問
+    let index = 0;         // いま何問目か（0から数える）
+    let currentText = "";  // いま入力されている文字
+    let misses = 0;        // ミス回数
+    let wasOnTrack = true; // 直前の入力が正しかったか
+    let startTime = 0;     // 最初に入力した時刻
+    let playing = false;
+
+    // 画面を切り替える（"start" / "play" / "result"）
+    function showView(name) {
+      for (const v of ["start", "play", "result"]) {
+        document.getElementById(v + "View").classList.toggle("hidden", v !== name);
+      }
+      const isPlay = name === "play";
+      keyboard.classList.toggle("hidden", !isPlay);
+      document.body.classList.toggle("playing", isPlay);
+      if (!isPlay) hideGuide();
+      window.scrollTo(0, 0);
+    }
+
+    function startPractice() {
+      // お題をシャッフルして先頭から10問使う
+      questions = [...PHRASES].sort(() => Math.random() - 0.5).slice(0, QUESTIONS_PER_ROUND);
+      index = 0;
+      misses = 0;
+      startTime = 0;
+      playing = true;
+      showView("play");
+      showQuestion();
+    }
+
+    function showQuestion() {
+      const q = questions[index];
+      document.getElementById("count").textContent = `${index + 1} / ${questions.length}`;
+      document.getElementById("missView").textContent = `ミス ${misses}`;
+      document.getElementById("show").textContent = q.show;
+      document.getElementById("kana").textContent = q.kana;
+      currentText = "";
+      typedView.textContent = "";
+      typedView.classList.remove("ng");
+      wasOnTrack = true;
+    }
+
+    // キーボードで文字が変わるたびに呼ばれる
+    function typeText(text) {
+      if (!playing) return;
+      if (!startTime) startTime = performance.now(); // 最初のキーでタイマー開始
+      currentText = text;
+      typedView.textContent = text;
+
+      const q = questions[index];
+      const onTrack = isOnTrack(text, q.kana);
+      if (!onTrack && wasOnTrack) misses++; // 正しい → 間違い に変わった瞬間を1ミスと数える
+      wasOnTrack = onTrack;
+      typedView.classList.toggle("ng", !onTrack);
+      document.getElementById("missView").textContent = `ミス ${misses}`;
+
+      if (text === q.kana) nextQuestion(); // 全部合っていたら次の問題へ
+    }
+
+    function nextQuestion() {
+      index++;
+      if (index < questions.length) {
+        showQuestion();
+      } else {
+        finishPractice();
+      }
+    }
+
+    function finishPractice() {
+      playing = false;
+      const seconds = (performance.now() - startTime) / 1000;
+      const chars = questions.reduce((sum, q) => sum + [...q.kana].length, 0);
+      const speed = Math.round(chars / (seconds / 60));
+      const accuracy = Math.round((chars / (chars + misses)) * 100);
+
+      document.getElementById("rSpeed").textContent = speed;
+      document.getElementById("rMiss").textContent = misses;
+      document.getElementById("rAcc").textContent = accuracy;
+      document.getElementById("rTime").textContent = seconds.toFixed(1);
+      showView("result");
+
+      // 結果を履歴に自動保存
+      addRecord({
+        id: Date.now(),
+        date: todayString(),
+        site: PRACTICE_SITE_NAME,
+        score: speed,
+        miss: misses,
+        unit: "文字/分",
+      });
+    }
+
+    // ボタンに「押されたらこの関数を呼んで」と登録する
+    document.getElementById("startBtn").addEventListener("click", startPractice);
+    document.getElementById("againBtn").addEventListener("click", startPractice);
+    document.getElementById("quitBtn").addEventListener("click", () => {
+      playing = false;
+      showView("start");
+    });
+
+    // =========================================================
+    // 履歴一覧の表示
+    // =========================================================
     function render() {
       const list = document.getElementById("list");
       list.innerHTML = ""; // いったん空にしてから描き直す
 
-      // 日付の新しい順に並べ替え
+      // 日付の新しい順（同じ日なら後に記録したものが上）に並べる
       const records = loadRecords().sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
 
       if (records.length === 0) {
@@ -157,7 +608,8 @@
         const site = document.createElement("span");
         site.className = "site";
         site.textContent = r.site;
-        main.append(site, `　スコア ${r.score} / ミス ${r.miss}`);
+        const scoreText = r.unit ? `速さ ${r.score}${r.unit}` : `スコア ${r.score}`;
+        main.append(site, document.createElement("br"), `${scoreText} / ミス ${r.miss}`);
         info.append(date, main);
 
         const del = document.createElement("button");
@@ -170,47 +622,43 @@
       }
     }
 
-    // --- 記録を1件削除する ---
     function deleteRecord(id) {
       if (!confirm("この記録を削除しますか？")) return;
       saveRecords(loadRecords().filter((r) => r.id !== id));
       render();
     }
 
-    // --- 「記録する」ボタンが押されたとき ---
+    // =========================================================
+    // 手動記録フォーム
+    // =========================================================
     document.getElementById("form").addEventListener("submit", (event) => {
       event.preventDefault(); // ページの再読み込みを止める
 
-      const record = {
-        id: Date.now(), // 削除するときの目印（作った時刻の数字）
-        date: document.getElementById("date").value,
-        site: document.getElementById("site").value.trim(),
-        score: Number(document.getElementById("score").value),
-        miss: Number(document.getElementById("miss").value),
-      };
-
+      const site = document.getElementById("site").value.trim();
       const msg = document.getElementById("msg");
-      if (!record.site) {
+      if (!site) {
         msg.textContent = "サイト名を入力してください";
         return;
       }
       msg.textContent = "";
 
-      const records = loadRecords();
-      records.push(record);
-      saveRecords(records);
+      addRecord({
+        id: Date.now(),
+        date: document.getElementById("date").value,
+        site: site,
+        score: Number(document.getElementById("score").value),
+        miss: Number(document.getElementById("miss").value),
+      });
 
       // 次の入力のためにスコアとミス数だけ空にする（日付とサイト名は残す）
       document.getElementById("score").value = "";
       document.getElementById("miss").value = "";
-      render();
     });
 
-    // --- ページを開いたときの初期処理 ---
-    // 日付欄に今日の日付を入れておく（YYYY-MM-DD 形式）
-    const today = new Date();
-    today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
-    document.getElementById("date").value = today.toISOString().slice(0, 10);
+    // =========================================================
+    // ページを開いたときの初期処理
+    // =========================================================
+    document.getElementById("date").value = todayString();
     render();
   </script>
 </body>
