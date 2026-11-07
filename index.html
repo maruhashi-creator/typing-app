@@ -9,6 +9,8 @@
 
   <!-- ===== 見た目（CSS） ===== -->
   <style>
+    /* ダブルタップでの拡大を止める（iPhoneは meta の拡大禁止を無視するため） */
+    html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
     body {
       /* 左から順に、その端末にあるフォントが使われる
          iPhone・Mac → ヒラギノ角ゴ / Windows → 游ゴシック・メイリオ */
@@ -110,7 +112,8 @@
       font-size: 22px;
       color: #000;
     }
-    .key.fn { background: #acb1ba; font-size: 15px; }  /* 機能キー（濃いグレー） */
+    .key.fn { background: #acb1ba; font-size: 17px; }  /* 機能キー（濃いグレー） */
+    .key.icon { font-size: 22px; }                      /* →・↺・☺・⌫ のアイコン */
     .key.dim { color: #6b6f76; }                        /* 今回は使わない飾りのキー */
     .key.small { font-size: 15px; }
     .key.pressed { background: #acb1ba; }
@@ -130,8 +133,8 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 24px;
-      border-radius: 6px;
+      font-size: 30px;
+      border-radius: 8px;
     }
     #guide div.cand { background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
     #guide div.on { background: #2f6fed; color: #fff; }
@@ -277,13 +280,13 @@
     // action: 文字以外の働きをするキー
     // =========================================================
     const KEY_LAYOUT = [
-      { label: "→", dim: true },
+      { label: "→", dim: true, icon: true },
       { flick: ["あ", "い", "う", "え", "お"] },
       { flick: ["か", "き", "く", "け", "こ"] },
       { flick: ["さ", "し", "す", "せ", "そ"] },
-      { label: "⌫", action: "backspace" },
+      { label: "⌫", action: "backspace", icon: true },
 
-      { label: "↺", dim: true },
+      { label: "↺", dim: true, icon: true },
       { flick: ["た", "ち", "つ", "て", "と"] },
       { flick: ["な", "に", "ぬ", "ね", "の"] },
       { flick: ["は", "ひ", "ふ", "へ", "ほ"] },
@@ -295,7 +298,7 @@
       { flick: ["ら", "り", "る", "れ", "ろ"] },
       { label: "改行", dim: true, enter: true },
 
-      { label: "☺", dim: true },
+      { label: "☺", dim: true, icon: true },
       { label: "小゛゜", action: "modify", small: true },
       { flick: ["わ", "を", "ん", "ー", ""] },
       { flick: ["、", "。", "？", "！", ""], label: "、。?!", small: true },
@@ -335,6 +338,7 @@
       if (!def.flick) key.classList.add("fn");
       if (def.dim) key.classList.add("dim");
       if (def.small) key.classList.add("small");
+      if (def.icon) key.classList.add("icon");
       if (def.enter) key.classList.add("enter");
       if (def.flick) key.dataset.char = def.flick[0]; // テスト用の目印
       if (def.action) key.dataset.action = def.action;
@@ -397,7 +401,7 @@
     // キーの上に十字のガイドを出す（選ばれている方向を青くする）
     function showGuide(key, flick, dir) {
       const r = key.getBoundingClientRect();
-      const size = Math.min(r.width, r.height);
+      const size = Math.max(r.height * 1.25, 60); // 候補1マスの大きさ（キーより少し大きく）
       guide.style.width = size * 3 + "px";
       guide.style.height = size * 3 + "px";
       guide.style.left = r.left + r.width / 2 - size * 1.5 + "px";
@@ -421,6 +425,24 @@
     function hideGuide() {
       guide.classList.add("hidden");
     }
+
+    // =========================================================
+    // 拡大の禁止（iPhoneのSafariは meta の拡大禁止を無視するので、ここで止める）
+    // =========================================================
+    // ピンチ（2本指）での拡大を止める
+    document.addEventListener("gesturestart", (e) => e.preventDefault());
+    document.addEventListener("touchmove", (e) => {
+      if (e.touches.length > 1) e.preventDefault();
+    }, { passive: false });
+    // 素早い2回目のタップ（＝ダブルタップ拡大）を止める
+    let lastTouchEnd = 0;
+    document.addEventListener("touchend", (e) => {
+      const now = Date.now();
+      if (now - lastTouchEnd < 350) e.preventDefault();
+      lastTouchEnd = now;
+    }, { passive: false });
+    // キーボードの上では、拡大・スクロールなど画面の標準の動きをすべて止める
+    keyboard.addEventListener("touchstart", (e) => e.preventDefault(), { passive: false });
 
     // =========================================================
     // 記録の保存・読み込み（localStorage = ブラウザ内の保存領域）
